@@ -1,27 +1,39 @@
-import ubinascii
 from umqtt.robust import MQTTClient
 import machine
-import config as cfg
 import port_io
 import ujson
+import config as cfg
 
-c = MQTTClient(cfg.mqtt_client_id, cfg.mqtt_server)
+mqtt_con_status = 'Not connected'
 
-def do_connect():
+def init_client(config):
+    client = MQTTClient(config['mqtt_cid'], config['mqtt_server'],
+                   user = config['mqtt_user'],
+               password = config['mqtt_pw'],
+               keepalive = int(config['mqtt_keepalive']))
+    return client
+
+def do_connect(client, config):
     # Setup MQTT connection
-    c.set_callback(sub_cb)
-    try:
-        rc = c.connect()   
-        c.subscribe(cfg.mqtt_sub_topic)
-        # setup timer to check for messages every 200ms
-        tim = machine.Timer(-1)
-        tim.init(period=200, mode=machine.Timer.PERIODIC, callback=lambda t:c.check_msg())
-        print("INFO: MQTT: Connected as client {} to {}, subscribed to topic {}".format(
-            cfg.mqtt_client_id, cfg.mqtt_server, cfg.mqtt_sub_topic))
-    except Exception as e:
-        print("ERROR: MQTT: Connection to {} failed: {}.".format(cfg.mqtt_sub_topic, e))
-        rc = e
-    return True if rc == 0 else False
+    global mqtt_con_status
+    if config['mqtt_enable'] != 0:
+        client.set_callback(sub_cb)
+        try:
+            rc = client.connect()
+        except Exception as e:
+            print("ERROR: MQTT: Connection to {} failed: {}.".format(config['mqtt_server'], e))
+            mqtt_con_status = e
+        else:
+            client.subscribe(config['mqtt_subt'])
+            # setup timer to check for messages every 200ms
+            tim = machine.Timer(-1)
+            tim.init(period = 200, mode = machine.Timer.PERIODIC,
+                     callback = lambda t:client.check_msg())
+            print("INFO: MQTT: Connected as client {} to {}, subscribed to topic {}".format(
+                config['mqtt_cid'], config['mqtt_server'], config['mqtt_subt']))
+            mqtt_con_status='Success'
+    else:
+        print("INFO: MQTT: Not enabled, not starting.")
 
 # MQTT callback
 def sub_cb(topic, msg):
@@ -35,8 +47,9 @@ def sub_cb(topic, msg):
     elif msg == b"toggle":
         port_io.toggle_output(cfg.RELAY)
         port_io.toggle_output(cfg.LED_R)
-    publish_status()
+    # FIXME how to publish mqtt status in callback routing?
+    # Can't config/client parameters
 
-def publish_status():
-    port_status = ujson.dumps(port_io.get_ports_status())
-    c.publish(cfg.mqtt_pub_topic, port_status)
+def publish_status(client, config, msg):
+    client.publish(config['mqtt_pubt'], msg)
+    print("INFO: MQTT: Published data to {}: {}".format(config['mqtt_pubt'], msg))

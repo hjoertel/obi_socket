@@ -15,17 +15,23 @@ LED_G = 2
 LED_R = 3
 ON_OFF = 1
 
+unique_machine_id = ubinascii.hexlify(machine.unique_id()).decode()
+initial_hostname = "obi-socket-{}".format(unique_machine_id)
 
-# FIXME - move the following cfg to obi_socket.cfg in json format
+initial_cfg = {
+                'hostname':         initial_hostname,
+                'wifi_ssid':        '',
+                'wifi_pw':          '',
+                'ap_pw':            'myobiPassword',
+                'tz_offset':        3600,
+                'mqtt_enable':      True,
+                'mqtt_keepalive':   0,
+                'mqtt_cid':         unique_machine_id,
+                'mqtt_server':      'iot.eclipse.org',
+                'mqtt_user':        '',
+                'mqtt_pw':          '',
+                'mqtt_subt':        unique_machine_id + '/' + 'switch/action',
+                'mqtt_pubt':        unique_machine_id + '/' + 'switch/status'
+}
 
-# Password to access esp's access point for setup
-ap_password = "myobiPassword"
-
-# time zone offset (UTC+x) in seconds
-tz_offset = 3600
-
-# MQTT config
-mqtt_client_id = ubinascii.hexlify(machine.unique_id()).decode()
-mqtt_server = 'iot.eclipse.org'
-mqtt_sub_topic = mqtt_client_id + '/' + 'switch/action'
-mqtt_pub_topic = mqtt_client_id + '/' + 'switch/status'
+# ----------------------------------------------------------------------------
