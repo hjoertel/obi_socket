@@ -1,53 +1,25 @@
-import config as cfg
-import port_io
 import utime
-import ubinascii
 import network
-import ujson
-
-def get_wifi_cfg():
-    try:
-        f = open("wifi.cfg")
-        p = f.read()
-        f.close()
-    except:
-        p = '{}'
-    return ujson.loads(p)
-
-def get_hostname_ssid():
-    wlan = network.WLAN(network.STA_IF)
-    wifi_cfg = get_wifi_cfg()
-    if len(wifi_cfg) == 0:
-        mac = ubinascii.hexlify(wlan.config('mac')).decode()
-        hostname = "obi-socket-{}".format(mac[-6:])
-        ssid = "not configured"
-    else:
-        hostname = wifi_cfg['hostname']
-        ssid = wifi_cfg['ssid']
-    return (hostname, ssid)
+from . import config as cfg
+from . import port_io
 
 
-def do_connect():
-
+def do_connect(config):
     wlan = network.WLAN(network.STA_IF)
 
-    cfg_dict = get_wifi_cfg()
-    try:
-        ssid = cfg_dict['ssid']
-        pw = cfg_dict['pw']
-        hostname = cfg_dict['hostname']
+    # wifi configured?
+    if config['wifi_ssid'] != '':
         wifi_cfg_exists = True
-    except:
+    else:
         wifi_cfg_exists = False
-
 
     if wifi_cfg_exists == True:
         wlan.active(True)
         if not wlan.isconnected():
-            print("INFO: Setting client hostname to {}".format(hostname))
-            wlan.config(dhcp_hostname=hostname)
+            print("INFO: Setting client hostname to {}".format(config['hostname']))
+            wlan.config(dhcp_hostname=config['hostname'])
             print('INFO: Connecting to network...')
-            wlan.connect(ssid, pw)
+            wlan.connect(config['wifi_ssid'], config['wifi_pw'])
             tmo = 0
             while not wlan.isconnected():
                 # try to connect and flash green LED
@@ -63,6 +35,7 @@ def do_connect():
         # no client config found
         print("INFO: No wifi client config found.")
         wlan.active(False)
+        port_io.blink_slowly()
 
     # timeout or connected?
     if wlan.isconnected():
@@ -77,3 +50,15 @@ def do_connect():
         wifi_is_connected = False
 
     return wifi_is_connected
+
+def start_accesspoint(conf):
+    print("INFO: --- Setting up AP ---")
+    ap_if = network.WLAN(network.AP_IF)
+    ap_if.active(True)
+    print("INFO: Setting AP name to {}".format(conf['hostname']))
+    print("INFO: Seeting Pw to {}".format(conf['ap_pw']))
+    try:
+        ap_if.config(essid=conf['hostname'], authmode=network.AUTH_WPA_WPA2_PSK, \
+                     password=conf['ap_pw'])
+    except OSError:
+        print("ERROR: Setting up AP failed.")

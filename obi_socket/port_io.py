@@ -1,7 +1,7 @@
-from machine import Pin
-import config as cfg
+from machine import Pin, Timer
 import utime
-import ujson
+from . import obi_tools
+from . import config as cfg
 
 class Button:
     """
@@ -37,7 +37,7 @@ def button_on_off_callback(pin):
                 blink_led(100)
                 import machine
                 import os
-                os.remove("wifi.cfg")
+                obi_tools.clear_cfg()
                 machine.reset()
 
 def toggle_output(port_id):
@@ -75,7 +75,7 @@ def get_ports_status():
 def setup_ports():
     # set output ports
     for port, pcfg in cfg.outputs.items():
-        print("INFO: Setting up GPIO {} on pin {}".format(port, pcfg['pin']))
+        print("INFO: Setting up GPIO OUTPUT pin {}".format(pcfg['pin']))
         if pcfg['active'] == 'high':
             # init high active ports with 0
             pcfg['obj'] = Pin(pcfg['pin'], Pin.OUT, value=0)
@@ -83,20 +83,25 @@ def setup_ports():
             # init low active ports with 1
             pcfg['obj'] = Pin(pcfg['pin'], Pin.OUT, value=1)
 
-        # setup input port
-        # hack to clean pending interrupts
-        on_off = Pin(cfg.inputs[cfg.ON_OFF]['pin'], Pin.IN, Pin.PULL_UP)
-        button_on_off = Button(pin=on_off, callback=button_on_off_callback)
+    # setup input ports
+    for port, pcfg in cfg.inputs.items():
+        print("INFO: Setting up GPIO INPUT pin {}".format(pcfg['pin']))
+        if pcfg['pullup'] == 'True':
+            pcfg['obj'] = Pin(pcfg['pin'], Pin.IN, Pin.PULL_UP)
+        else:
+            pcfg['obj'] = Pin(pcfg['pin'], Pin.IN)
+
+    on_off = cfg.inputs[cfg.ON_OFF]['obj']
+    button_on_off = Button(pin=on_off, callback=button_on_off_callback)
 
 def blink_led(n):
     for i in range(0,n):
         toggle_output(cfg.LED_R)
         utime.sleep(0.03)
 
-def toggle_each_port():
-    for port in range (1, len(cfg.outputs) + 1):
-        cfg.outputs[port]['obj'].value(0)
-        utime.sleep(0.2)
-    for port in range (1, len(cfg.outputs) + 1):
-        cfg.outputs[port]['obj'].value(1)
-        utime.sleep(0.2)
+def blink_slowly_cb(t):
+    toggle_output(cfg.LED_G)
+
+def blink_slowly():
+    timer = Timer(-1)
+    timer.init(period=1000, mode=Timer.PERIODIC, callback=blink_slowly_cb)
